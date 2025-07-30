@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
 import emcee
+from copy import deepcopy
 from scipy.stats import norm, uniform, truncnorm
 from multiprocessing import Pool
 from scipy.optimize import least_squares
@@ -97,6 +98,16 @@ def eval_sage(params, time, args):
         flux_norm, _, _= star.rotate_star()
 
         model_lightcurve[i] = flux_norm 
+    
+    #Adding the offset in the event of a visit concatenation
+    if args['concat_fit']:
+        for iconcat in range(args['local_output_dic']['num_concat_LCs']):
+            if f'LC_offset{iconcat+1}' in args['var_param_list']:
+                LC_offset = params[args['var_param_list'].index(f'LC_offset{iconcat+1}')]
+            elif f'LC_offset{iconcat+1}' in args['fix_param_list']:
+                LC_offset = args['fix_param_values'][args['fix_param_list'].index(f'LC_offset{iconcat+1}')]
+            time_mask = ((time <= args['local_output_dic']['concat_ts'][iconcat][-1]) & (time >= args['local_output_dic']['concat_ts'][iconcat][0]))
+            model_lightcurve[time_mask] += LC_offset
 
     return model_lightcurve + offset, jitt # delete this when you are done with the code.
 
@@ -137,17 +148,13 @@ def main():
     ###########################
     # Defining sectors to use and LCs for each sector 
     #% For analysis of individual LCs
-    # sectors_dic = {1:[1,2], 27:[1,2]}
-    #% For analysis of concatenated LCs
-    sectors_dic = {1:[1],27:[1]}
+    sectors_dic = {1:[1,2], 27:[1,2]}
     sectors = list(sectors_dic.keys())
 
     #Defining relevant directories
     output_dir = '/home/merci228/WORK/SAGE/AU_Mic/'
     #% For analysis of individual LCs
-    # input_dir = '/home/merci228/WORK/SAGE/Formatted_TESS'
-    #% For analysis of concatenated LCs
-    input_dir = '/home/merci228/WORK/SAGE/Concatenated_TESS'
+    input_dir = '/home/merci228/WORK/SAGE/Formatted_TESS'
 
     #Defining dictionary with planet information -> to remove their transits
     planet_propdic = {}
@@ -165,9 +172,7 @@ def main():
 
     #Defining the flare sigma-clipping thresholds
     #% For analysis of individual LCs
-    # sigma_dic = {1:[1.5, 2.5], 27:[1.5, 1.5]}
-    #% For analysis of concatenated LCs
-    sigma_dic = {1:[1.5], 27:[1.5]}
+    sigma_dic = {1:[1.5, 2.5], 27:[1.5, 1.5]}
 
     # Defining rolling median function
     def rolling_median(data, window):
@@ -180,6 +185,9 @@ def main():
     #Defining number of points to bin each LC to
     nbins = 500
 
+    #Toggle to swap from individual to concatenated LC fits
+    concat_fit = True
+
     #Defining dictionary to store output from pre-processing of each LC
     output_dic = {}
 
@@ -191,8 +199,8 @@ def main():
     #Defining least squares settings
 
     #Defining MCMC settings
-    nsteps = 15000
-    nburn=8000
+    nsteps = 5000
+    nburn=3000
 
     # Defining time window of sectors to fit
     #% For analysis of individual LCs
@@ -293,10 +301,12 @@ def main():
                     'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
                     'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
                     'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
-                    'offset': {'vary':True, 'guess':0.0187, 'bounds':[0.001, 0.1]},
+                    'offset': {'vary':False, 'guess':0., 'bounds':[0.001, 0.1]},
                     'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
                     'Prot': {'vary':True, 'guess':'LS'},
                     'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
+                    'LC_offset1': {'vary':True, 'guess':0., 'bounds':[-1, 1]},
+                    'LC_offset2': {'vary':True, 'guess':0., 'bounds':[-1, 1]},
                 }},
             'sector_27':{
                 'LC_1':{
@@ -309,10 +319,12 @@ def main():
                     'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
                     'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
                     'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
-                    'offset': {'vary':True, 'guess':0.0187, 'bounds':[0.001, 0.1]},
+                    'offset': {'vary':False, 'guess':0., 'bounds':[0.001, 0.1]},
                     'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
                     'Prot': {'vary':True, 'guess':'LS'},
                     'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
+                    'LC_offset1': {'vary':True, 'guess':0., 'bounds':[-0.001, 0.001]},
+                    'LC_offset2': {'vary':True, 'guess':0.006, 'bounds':[0.005, 0.007]},
                 }}
     }
 
@@ -398,10 +410,12 @@ def main():
                     'spot1_size': {'type':'uf', 'min':0, 'max':90},
                     'spot2_size': {'type':'uf', 'min':0, 'max':90},
                     'spot3_size': {'type':'uf', 'min':0, 'max':90},
-                    'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
+                    # 'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
                     'jitter': {'type':'uf', 'min':-15, 'max':15},
                     'Prot': {'type':'LS'},
-                    # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.}
+                    # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
+                    'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
+                    'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
                 }},
             'sector_27':{
                 'LC_1':{
@@ -414,10 +428,12 @@ def main():
                     'spot1_size': {'type':'uf', 'min':0, 'max':90},
                     'spot2_size': {'type':'uf', 'min':0, 'max':90},
                     'spot3_size': {'type':'uf', 'min':0, 'max':90},
-                    'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
+                    # 'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
                     'jitter': {'type':'uf', 'min':-15, 'max':15},
                     'Prot': {'type':'LS'},
-                    # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.}
+                    # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
+                    'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
+                    'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
                 }},
     }
 
@@ -522,10 +538,46 @@ def main():
             plt.errorbar(t, flux, yerr=flux_err, fmt='.', color='blue', label='Cleaned')
             plt.errorbar(binned_t, binned_flux, yerr=binned_flux_err, color='yellow', linestyle='-', label='Binned')        
             plt.legend()
+            plt.xlabel('Time (BJD)')
+            plt.ylabel('Flux')
             plt.savefig(LC_dir+'/input_LC.pdf')
             plt.close()
 
 
+    ####################################
+    # Swapping to one LC fit per visit #
+    ####################################
+    if concat_fit:
+        old_output_dic = deepcopy(output_dic)
+        output_dic = {}
+        for sector in sectors:
+            #Plot the concatenated LCs
+            plt.figure(figsize=[14, 8])
+            plt.title(f'Sector {sector} concatenated LCs')
+            for LC in sectors_dic[sector]:
+                LC_name = f'LC_{LC}'
+                t = old_output_dic[f'sector_{sector}'][LC_name]['t']
+                flux = old_output_dic[f'sector_{sector}'][LC_name]['flux']
+                flux_err = old_output_dic[f'sector_{sector}'][LC_name]['flux_err']
+                plt.errorbar(t, flux, yerr=flux_err, fmt='.', label=LC_name)
+            plt.xlabel('Time (BJD)')
+            plt.ylabel('Flux')
+            plt.savefig(output_dir+f'/sector_{sector}/concat_LC.pdf')
+            plt.close()
+
+            #Ensure the user defined the right format for the guess and priors dictionaries
+            if (len(guess_dic[f'sector_{sector}']) != 1) or (len(priors_dic[f'sector_{sector}']) != 1) or (len(time_window_dic[f'sector_{sector}']) != 1):
+                raise ValueError(f"Guess, prior, and time window dictionaries must have only one LC per sector when using concatenated LCs. Found {len(guess_dic[f'sector_{sector}'])}, {len(priors_dic[f'sector_{sector}'])}, and {len(time_window_dic[f'sector_{sector}'])} respectively.")
+
+            #Store the output directory of the concatenated LCs
+            output_dic[f'sector_{sector}'] = {}
+            output_dic[f'sector_{sector}']['LC_1'] = {}
+            output_dic[f'sector_{sector}']['LC_1']['num_concat_LCs'] = len(sectors_dic[sector])
+            output_dic[f'sector_{sector}']['LC_1']['concat_ts'] = [old_output_dic[f'sector_{sector}'][f'LC_{i+1}']['t'] for i in range(output_dic[f'sector_{sector}']['LC_1']['num_concat_LCs'])]
+            for entry in ['t', 'flux', 'flux_err']:
+                output_dic[f'sector_{sector}'][f'LC_1'][entry] = np.concatenate([old_output_dic[f'sector_{sector}'][f'LC_{i+1}'][entry] for i in range(output_dic[f'sector_{sector}']['LC_1']['num_concat_LCs'])])
+
+            sectors_dic[sector] = [1] #Only one LC per sector
 
     ####################
     ### Fitting data ###
@@ -571,6 +623,8 @@ def main():
             add_args['fix_param_list'] = fix_param_list
             add_args['fix_param_values'] = fix_param_values
             add_args['spotnumber'] = spotnumber
+            add_args['concat_fit'] = concat_fit
+            add_args['local_output_dic'] = local_output_dic
                 
             #Prot specific check
             if ('Prot' not in var_param_list) and ('Prot' not in fix_param_list):
@@ -605,9 +659,24 @@ def main():
             if ('Prot' in fix_param_list) and (local_guess_dic['Prot']['guess'] == 'LS'):
                 add_args['fix_param_values'][fix_param_list.index('Prot')]=best_period
 
+            #Checking there is the correct number of offsets for the concatenated fit
+            if concat_fit:
+                var_LC_offset_list = [param for param in var_param_list if 'LC_offset' in param]
+                fix_LC_offset_list = [param for param in fix_param_list if 'LC_offset' in param]
+                if (len(var_LC_offset_list) + len(fix_LC_offset_list) != local_output_dic['num_concat_LCs']):
+                    raise ValueError(f'When fitting concatenated LCs, LC offsets must be equal to number of LCs concatenated. Found {len(var_LC_offset_list) + len(fix_LC_offset_list)} LC offsets but {local_output_dic["num_concat_LCs"]} LCs.')
+            else:
+                var_LC_offset_list = []
+                fix_LC_offset_list = []
+
+            #Checking that there aren't too many offsets
+            if concat_fit:
+                if ('offset' in var_param_list) or ('offset' in fix_param_list and fix_param_values[fix_param_list.index('offset')] != 0.):
+                    raise ValueError('Careful, you might be adding too many offsets in your fit.')
+
             params= spot_params
             priors = spot_priors
-            for param in ['offset', 'jitter', 'Prot', 'sp_ctrst']:
+            for param in ['offset', 'jitter', 'Prot', 'sp_ctrst'] + var_LC_offset_list:
                 if param in var_param_list:
                     if (param == 'Prot') and (local_guess_dic['Prot']['guess'] == 'LS') and (local_priors_dic['Prot']['type'] == 'LS'):
                         params.append(best_period)
@@ -654,7 +723,7 @@ def main():
 
             #Looping over sliding masks i.e. looping over time windows to fit
             for imask, sliding_mask in enumerate(sliding_masks):
-
+                
                 print(f'RESTRICTING TIME WINDOW USING MASK {imask+1}/{len(sliding_masks)}')
                 #Restricting time window
                 local_output_dic['t'] = np.copy(output_dic[sector_name][LC_name]['t'])[sliding_mask]
