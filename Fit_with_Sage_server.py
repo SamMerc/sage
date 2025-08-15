@@ -869,6 +869,7 @@ def main():
                     elif processing_method == 'reuse':
                         print('Retrieving MCMC chains')
                         raw_chain = np.load(mask_dir+'/chains.npy')
+                        logprob = np.load(mask_dir+'/logprob.npy')
                         old_nwalkers, old_nsteps, old_ndim = raw_chain.shape
                         for old_val, new_val, name in zip([old_nwalkers, old_nsteps, old_ndim],[nwalkers, nsteps, add_args['ndim']],['walkers','steps','dimensions']):
                             if old_val != new_val:
@@ -934,21 +935,25 @@ def main():
 
                     # Median             
                     median_params = np.median(chain, axis=0)
-                    median_res = eval_sage(median_params, local_output_dic['t'], add_args)[0]
+                    median_dic = {varparname:varparval for varparname, varparval in zip(add_args['var_param_list'], median_params)}
+                    median_dic.update({fixparname:fixparval for fixparname, fixparval in zip(add_args['fix_param_list'], add_args['fix_param_values'])})
+                    median_res = eval_sage(median_dic, local_output_dic['t'], add_args)[0]
                     ax1.plot(local_output_dic['t'], median_res, color='yellow', label='Median Fit')
-                    ax2.errorbar(local_output_dic['t'], (local_output_dic['flux'] - median_res), yerr=local_output_dic['flux_err'], fmt='.', color='yellow')
+                    ax2.errorbar(local_output_dic['t'], (local_output_dic['flux'] - median_res) * 1e6, yerr=local_output_dic['flux_err'], fmt='.', color='yellow')
                 
                 elif fitting_method == 'ls':
                     best_fit_params = ls_best_fit
-                bestfit_res = eval_sage(best_fit_params, local_output_dic['t'], add_args)[0]
+                best_fit_dic = {varparname:varparval for varparname, varparval in zip(add_args['var_param_list'], best_fit_params)}
+                best_fit_dic.update({fixparname:fixparval for fixparname, fixparval in zip(add_args['fix_param_list'], add_args['fix_param_values'])})
+                bestfit_res = eval_sage(best_fit_dic, local_output_dic['t'], add_args)[0]
                 ax1.plot(local_output_dic['t'], bestfit_res, color='orange', label='Best Fit')
-                ax2.errorbar(local_output_dic['t'], (local_output_dic['flux'] - bestfit_res), yerr=local_output_dic['flux_err'], fmt='.', color='orange')
+                ax2.errorbar(local_output_dic['t'], (local_output_dic['flux'] - bestfit_res) * 1e6, yerr=local_output_dic['flux_err'], fmt='.', color='orange')
                 if add_args['flare_time_dic'] != {}:
                     for key in add_args['flare_time_dic']:
-                        ax1.avline(add_args['flare_time_dic'][key], color='black', linestyle='dashed', label=key)
+                        ax1.axvline(add_args['flare_time_dic'][key], color='black', linestyle='dashed', label=key)
                 ax1.set_ylabel("Flux")
                 ax2.set_xlabel("Time (BJD)")
-                ax2.set_ylabel("Residuals")
+                ax2.set_ylabel("Residuals (ppm)")
                 ax1.legend()
                 plt.tight_layout()
                 plt.savefig(mask_dir+'/best_fit.pdf')
