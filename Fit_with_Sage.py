@@ -29,10 +29,11 @@ from sage import sage_class
 ### Functions ###
 #################
 # defining MCMC funcs (log prior, log likelihood, log probability)
-def lnprior(params,priors):
+def lnprior(params,priors, args):
     lp = 0.0
-    for par, pr in zip(params, priors):
-        lp += pr.logpdf(par)
+    for parname in args['var_param_list']:
+        pr = priors[parname]
+        lp += pr.logpdf(params[parname])
     return lp
 
 def eval_sage(params, time, args):
@@ -42,20 +43,15 @@ def eval_sage(params, time, args):
     spot_lat=[]
     spot_size= []
     for spot_param, spot_list in zip(['lat', 'long', 'size'], [spot_lat, spot_long, spot_size]):
-        for num in range(args['spotnumber']):
-            param_name = f'spot{num+1}_{spot_param}'
-            if param_name in args['var_param_list']:spot_list.append(params[args['var_param_list'].index(param_name)])
-            elif param_name in args['fix_param_list']:spot_list.append(args['fix_param_values'][args['fix_param_list'].index(param_name)])
+        for spname in args['spotnames']:
+            if (f'{spname}_{spot_param}' in args['var_param_list']) or (f'{spname}_{spot_param}' in args['fix_param_list']):spot_list.append(params[f'{spname}_{spot_param}'])
 
     #% All others
     add_param_values = {'offset': 0.,'jitter': 0.,'Prot': 0.,'sp_ctrst': 0.}
 
     # Update values from args
     for key in add_param_values:
-        if key in args['var_param_list']:
-            add_param_values[key] = params[args['var_param_list'].index(key)]
-        elif key in args['fix_param_list']:
-            add_param_values[key] = args['fix_param_values'][args['fix_param_list'].index(key)]
+        if (key in args['var_param_list']) or (key in args['fix_param_list']):add_param_values[key] = params[key]
 
     # Extract final values
     offset = add_param_values['offset']
@@ -88,8 +84,18 @@ def eval_sage(params, time, args):
 
     model_lightcurve = np.empty(len(time))
 
+    execute_once = [[False for _ in range(args['spotnumber'])] for _ in range(args['flarenumber'])]
     for i, ti in enumerate(time):
         
+        #Vary spot size if a flare step parameter has been included
+        if args['flare_time_dic'] != {}:
+            for fidx, flarenam in enumerate(args['flarenames']):
+                for sidx, spotnam in enumerate(args['spotnames']):
+                    flare_param = f'{flarenam}_{spotnam}_size'
+                    if ((flare_param in args['var_param_list']) or (flare_param in args['fix_param_list'])) and (ti > args['flare_time_dic'][flare_param]) and (not execute_once[fidx][sidx]):
+                        spot_size[sidx] += params[flare_param]
+                        execute_once[fidx][sidx] = True
+
         phase_roti = ((2*np.pi)/prot) * (ti - time[0])
 
         star = sage_class(stellar_params, planet_pixel_size, wavelength, flux_hot, flux_cold, 
@@ -130,9 +136,17 @@ def lnlike(params, time, flux, flux_err, args):
     return -0.5 * np.sum((flux - mdl)**2/sigma2 + np.log(sigma2) ) 
 
 def lnprob(params, priors, day, flux, flux_err, args):
-    lp = lnprior(params, priors)
+
+    #Re-arrange input parameters to be better
+    p_step = {}
+    for idx, var_param in enumerate(args['var_param_list']):
+        p_step[var_param] = params[idx]
+    for fix_param, fix_parval in zip(args['fix_param_list'], args['fix_param_values']):
+        p_step[fix_param] = fix_parval
+
+    lp = lnprior(p_step, priors, args)
     if np.isfinite(lp):
-        ll = lnlike(params, day, flux, flux_err, args)
+        ll = lnlike(p_step, day, flux, flux_err, args)
         if (not np.isnan(ll)):
             return lp+ll
         else:
@@ -148,7 +162,10 @@ def main():
     ###########################
     # Defining sectors to use and LCs for each sector 
     #% For analysis of individual LCs
-    sectors_dic = {1:[1,2], 27:[1,2]}
+    sectors_dic = {
+                    # 1:[1,2],
+                    27:[1,2]
+                    }
     sectors = list(sectors_dic.keys())
 
     #Defining relevant directories
@@ -172,7 +189,10 @@ def main():
 
     #Defining the flare sigma-clipping thresholds
     #% For analysis of individual LCs
-    sigma_dic = {1:[1.5, 2.5], 27:[1.5, 1.5]}
+    sigma_dic = {
+        # 1:[1.5, 2.5],
+        27:[1.5, 1.5]
+        }
 
     # Defining rolling median function
     def rolling_median(data, window):
@@ -199,8 +219,9 @@ def main():
     #Defining least squares settings
 
     #Defining MCMC settings
-    nsteps = 5
-    nburn=2
+    nsteps = 10
+    nburn = 3
+    nwalkers = 60
 
     # Defining time window of sectors to fit
     #% For analysis of individual LCs
@@ -214,8 +235,10 @@ def main():
     #                        },
     #                  }
     #% For analysis of concatenated LCs
-    time_window_dic = {'sector_1':{'LC_1':'all'},
-                       'sector_27':{'LC_1':'all'}}
+    time_window_dic = {
+        # 'sector_1':{'LC_1':'all'},
+        'sector_27':{'LC_1':'all'}
+                       }
 
     #Initial guesses
     #Prot in days
@@ -290,24 +313,24 @@ def main():
 
     #% For analysis of concatenated LCs
     guess_dic = {
-            'sector_1':{
-                'LC_1':{
-                    'spot1_lat': {'vary':True, 'guess':-30, 'bounds':[-50, -10]},
-                    'spot2_lat': {'vary':True, 'guess':40, 'bounds':[20, 60]},
-                    'spot3_lat': {'vary':True, 'guess':0, 'bounds':[-50, 50]},
-                    'spot1_long': {'vary':True, 'guess':-100, 'bounds':[-120, -80]},
-                    'spot2_long': {'vary':True, 'guess':80, 'bounds':[60, 100]},
-                    'spot3_long': {'vary':True, 'guess':0, 'bounds':[-100, 100]},
-                    'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
-                    'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
-                    'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
-                    'offset': {'vary':False, 'guess':0., 'bounds':[0.001, 0.1]},
-                    'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
-                    'Prot': {'vary':True, 'guess':'LS'},
-                    'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
-                    'LC_offset1': {'vary':True, 'guess':0., 'bounds':[-1, 1]},
-                    'LC_offset2': {'vary':True, 'guess':0., 'bounds':[-1, 1]},
-                }},
+            # 'sector_1':{
+            #     'LC_1':{
+            #         'spot1_lat': {'vary':True, 'guess':-30, 'bounds':[-50, -10]},
+            #         'spot2_lat': {'vary':True, 'guess':40, 'bounds':[20, 60]},
+            #         'spot3_lat': {'vary':True, 'guess':0, 'bounds':[-50, 50]},
+            #         'spot1_long': {'vary':True, 'guess':-100, 'bounds':[-120, -80]},
+            #         'spot2_long': {'vary':True, 'guess':80, 'bounds':[60, 100]},
+            #         'spot3_long': {'vary':True, 'guess':0, 'bounds':[-100, 100]},
+            #         'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
+            #         'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
+            #         'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
+            #         'offset': {'vary':True, 'guess':0., 'bounds':[0.001, 0.1]},
+            #         'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
+            #         'Prot': {'vary':True, 'guess':'LS'},
+            #         'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
+            #         'LC_offset1': {'vary':False, 'guess':0., 'bounds':[-1, 1]},
+            #         'LC_offset2': {'vary':False, 'guess':0., 'bounds':[-1, 1]},
+            #     }},
             'sector_27':{
                 'LC_1':{
                     'spot1_lat': {'vary':True, 'guess':-30, 'bounds':[-50, -10]},
@@ -318,13 +341,16 @@ def main():
                     'spot3_long': {'vary':True, 'guess':0, 'bounds':[-100, 100]},
                     'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
                     'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
-                    'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
-                    'offset': {'vary':False, 'guess':0., 'bounds':[0.001, 0.1]},
-                    'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
-                    'Prot': {'vary':True, 'guess':'LS'},
+                    'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},                    
+                    'offset': {'vary':True, 'guess':0., 'bounds':[0.001, 0.1]},
+                    'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},            
+                    'Prot': {'vary':True, 'guess':'LS'},           
+                    'flare1_spot1_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
+                    'flare1_spot2_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
+                    'flare1_spot3_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
                     'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
-                    'LC_offset1': {'vary':True, 'guess':0., 'bounds':[-0.001, 0.001]},
-                    'LC_offset2': {'vary':True, 'guess':0.006, 'bounds':[0.005, 0.007]},
+                    'LC_offset1': {'vary':False, 'guess':0., 'bounds':[-0.001, 0.001]},
+                    'LC_offset2': {'vary':False, 'guess':0., 'bounds':[0.005, 0.007]},
                 }}
     }
 
@@ -399,26 +425,27 @@ def main():
 
 #% For analysis of concatenated LCs
     priors_dic = {
-            'sector_1':{
-                'LC_1':{
-                    'spot1_lat': {'type':'uf', 'min':-80, 'max':0.},
-                    'spot2_lat': {'type':'uf', 'min':0, 'max':80},
-                    'spot3_lat': {'type':'uf', 'min':-80, 'max':80},
-                    'spot1_long': {'type':'uf', 'min':-180, 'max':180},
-                    'spot2_long': {'type':'uf', 'min':-180, 'max':180},
-                    'spot3_long': {'type':'uf', 'min':-180, 'max':180},
-                    'spot1_size': {'type':'uf', 'min':0, 'max':90},
-                    'spot2_size': {'type':'uf', 'min':0, 'max':90},
-                    'spot3_size': {'type':'uf', 'min':0, 'max':90},
-                    # 'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
-                    'jitter': {'type':'uf', 'min':-15, 'max':15},
-                    'Prot': {'type':'LS'},
-                    # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
-                    'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
-                    'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
-                }},
+            # 'sector_1':{
+            #     'LC_1':{
+            #         'spot1_lat': {'type':'uf', 'min':-80, 'max':0.},
+            #         'spot2_lat': {'type':'uf', 'min':0, 'max':80},
+            #         'spot3_lat': {'type':'uf', 'min':-80, 'max':80},
+            #         'spot1_long': {'type':'uf', 'min':-180, 'max':180},
+            #         'spot2_long': {'type':'uf', 'min':-180, 'max':180},
+            #         'spot3_long': {'type':'uf', 'min':-180, 'max':180},
+            #         'spot1_size': {'type':'uf', 'min':0, 'max':90},
+            #         'spot2_size': {'type':'uf', 'min':0, 'max':90},
+            #         'spot3_size': {'type':'uf', 'min':0, 'max':90},
+            #         'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
+            #         'jitter': {'type':'uf', 'min':-15, 'max':15},
+            #         'Prot': {'type':'LS'},
+            #         # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
+            #         # 'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
+            #         # 'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
+            #     }},
             'sector_27':{
                 'LC_1':{
+                    #Spot properties
                     'spot1_lat': {'type':'uf', 'min':-80, 'max':0.},
                     'spot2_lat': {'type':'uf', 'min':0, 'max':80},
                     'spot3_lat': {'type':'uf', 'min':-80, 'max':80},
@@ -428,12 +455,21 @@ def main():
                     'spot1_size': {'type':'uf', 'min':0, 'max':90},
                     'spot2_size': {'type':'uf', 'min':0, 'max':90},
                     'spot3_size': {'type':'uf', 'min':0, 'max':90},
-                    # 'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
+
+                    #LC properties
+                    'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
                     'jitter': {'type':'uf', 'min':-15, 'max':15},
+
+                    #Star properties
                     'Prot': {'type':'LS'},
+
+                    #Flare properties
+                    'flare1_spot1_size': {'type':'uf', 'min':0, 'max':30},
+                    'flare1_spot2_size': {'type':'uf', 'min':0, 'max':30},
+                    'flare1_spot3_size': {'type':'uf', 'min':0, 'max':30},
                     # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
-                    'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
-                    'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
+                    # 'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
+                    # 'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
                 }},
     }
 
@@ -598,14 +634,20 @@ def main():
 
             #Inirtializing lists
             spot_params=[]
-            spot_priors= []
+            spot_priors= {}
             spot_labels= []
 
             #Finding the number of spots
             spotnames = []
             for key in local_guess_dic.keys():
-                if ('spot' in key):spotnames.append(key.split('_')[0])
+                if ('spot' in key) and ('flare' not in key):spotnames.append(key.split('_')[0])
             spotnumber = len(np.unique(spotnames))
+
+            #Finding the number of flares
+            flarenames = []
+            for key in local_guess_dic.keys():
+                if ('flare' in key):flarenames.append(key.split('_')[0])
+            flarenumber = len(np.unique(flarenames))
 
             #Parameter check
             for param in local_guess_dic.keys():
@@ -620,9 +662,13 @@ def main():
             fix_param_values = [local_guess_dic[key]['guess'] for key in fix_param_list]
             add_args={}
             add_args['var_param_list'] = var_param_list
+            add_args['ndim'] = len(var_param_list)
             add_args['fix_param_list'] = fix_param_list
             add_args['fix_param_values'] = fix_param_values
             add_args['spotnumber'] = spotnumber
+            add_args['spotnames'] = np.unique(spotnames)
+            add_args['flarenumber'] = flarenumber
+            add_args['flarenames'] = np.unique(flarenames)
             add_args['concat_fit'] = concat_fit
             add_args['local_output_dic'] = local_output_dic
                 
@@ -635,18 +681,42 @@ def main():
                 if ('sp_ctrst' in var_param_list) and ('_size' in param):
                     print('WARNING: Spot size and contrast are both free parameters. This is not recommended.')
                     break
-
+            
+            #Retrieving spot properties
             for param in ['lat', 'long', 'size']:
                 for num in range(spotnumber):
-                    if f'spot{num+1}_{param}' in var_param_list:
+                    propname = f'spot{num+1}_{param}'
+                    if propname in var_param_list:
                         #Adding parameter
-                        spot_params.extend([local_guess_dic[f'spot{num+1}_{param}']['guess']])
+                        spot_params.extend([local_guess_dic[propname]['guess']])
                         #Adding priors
-                        if local_priors_dic[f'spot{num+1}_{param}']['type'] == 'uf':spot_priors.extend([uniform(loc=local_priors_dic[f'spot{num+1}_{param}']['min'], scale=local_priors_dic[f'spot{num+1}_{param}']['max']-local_priors_dic[f'spot{num+1}_{param}']['min'])])
-                        elif local_priors_dic[f'spot{num+1}_{param}']['type'] == 'gauss':spot_priors.extend([norm(loc=local_priors_dic[f'spot{num+1}_{param}']['val'], scale=local_priors_dic[f'spot{num+1}_{param}']['s_val'])])
-                        else:raise ValueError(f"Prior type {local_priors_dic[f'spot{num+1}_{param}']['type']} not recognized.")
+                        if local_priors_dic[propname]['type'] == 'uf':
+                            spot_priors.update({propname : uniform(loc=local_priors_dic[propname]['min'], scale=local_priors_dic[propname]['max']-local_priors_dic[propname]['min'])})
+                        elif local_priors_dic[propname]['type'] == 'gauss':
+                            spot_priors.update({propname : norm(loc=local_priors_dic[propname]['val'], scale=local_priors_dic[propname]['s_val'])})
+                        else:raise ValueError(f"Prior type {local_priors_dic[propname]['type']} not recognized.")
                         #Adding labels
-                        spot_labels.extend([f'spot{num+1}_{param}'])
+                        spot_labels.extend([propname])
+
+            #Retrieving flare properties
+            add_args['flare_time_dic']={}
+            for flarenam in add_args['flarenames']:
+                for spotnam in add_args['spotnames']:
+                    propname = f'{flarenam}_{spotnam}_size'
+                    if propname in var_param_list:
+                        spot_params.extend([local_guess_dic[propname]['guess']])
+                        #Adding priors
+                        if local_priors_dic[propname]['type'] == 'uf':
+                            spot_priors.update({propname : uniform(loc=local_priors_dic[propname]['min'], scale=local_priors_dic[propname]['max']-local_priors_dic[propname]['min'])})
+                        elif local_priors_dic[propname]['type'] == 'gauss':
+                            spot_priors.update({propname : norm(loc=local_priors_dic[propname]['val'], scale=local_priors_dic[propname]['s_val'])})
+                        else:raise ValueError(f"Prior type {local_priors_dic[propname]['type']} not recognized.")
+                        #Adding labels
+                        spot_labels.extend([propname])
+
+                    #Retrieve the timing - needed whether we have fixed or fitted properties
+                    if (propname in var_param_list) or (propname in fix_param_list):
+                        add_args['flare_time_dic'][propname] = local_guess_dic[propname]['timing']
 
             #Compute Lomb-Scargle periodogram - only if we fit period and use LS to initialize it
             min_period = 0.5
@@ -672,7 +742,7 @@ def main():
             #Checking that there aren't too many offsets
             if concat_fit:
                 if ('offset' in var_param_list) or ('offset' in fix_param_list and fix_param_values[fix_param_list.index('offset')] != 0.):
-                    raise ValueError('Careful, you might be adding too many offsets in your fit.')
+                    print('Careful, you might be adding too many offsets in your fit.')
 
             params= spot_params
             priors = spot_priors
@@ -680,11 +750,13 @@ def main():
                 if param in var_param_list:
                     if (param == 'Prot') and (local_guess_dic['Prot']['guess'] == 'LS') and (local_priors_dic['Prot']['type'] == 'LS'):
                         params.append(best_period)
-                        priors.append(norm(loc=best_period, scale=.2))
+                        priors.update({'Prot' : norm(loc=best_period, scale=.2)})
                     else:
                         params.append(local_guess_dic[param]['guess'])
-                        if local_priors_dic[param]['type'] == 'uf':priors.append(uniform(local_priors_dic[param]['min'], local_priors_dic[param]['max']-local_priors_dic[param]['min']))
-                        elif local_priors_dic[param]['type'] == 'gauss':priors.append(norm(loc=local_priors_dic[param]['val'], scale=local_priors_dic[param]['s_val']))
+                        if local_priors_dic[param]['type'] == 'uf':
+                            priors.update({param : uniform(local_priors_dic[param]['min'], local_priors_dic[param]['max']-local_priors_dic[param]['min'])})
+                        elif local_priors_dic[param]['type'] == 'gauss':
+                            priors.update({param : norm(loc=local_priors_dic[param]['val'], scale=local_priors_dic[param]['s_val'])})
                         else:raise ValueError(f"Prior type {local_priors_dic[param]['type']} not recognized.")
                     spot_labels.append(param)
 
@@ -756,22 +828,24 @@ def main():
                     if processing_method == 'use': 
                         print('Fitting with MCMC')
                         print('DEFINING PRIORS')
-                        ndim, nwalkers = len(priors), len(priors)*5
-                        pos = np.zeros((nwalkers, ndim), dtype=float)
-                        for i in range(ndim):
+                        pos = np.zeros((nwalkers, add_args['ndim']), dtype=float)
+                        for i in range(add_args['ndim']):
                             if var_param_list[i]=='Prot':pos[:, i] = np.random.normal(loc=best_period, scale=1., size=nwalkers)
                             else:pos[:, i] = np.random.uniform(low=local_guess_dic[var_param_list[i]]['bounds'][0], high=local_guess_dic[var_param_list[i]]['bounds'][1], size=nwalkers)
                         for position in pos:
-                            assert np.isfinite(lnprior(position,priors)), f"lnprior of parameters: {position} is not finite"
+                            test_position = {}
+                            for varidx, varparam in enumerate(add_args['var_param_list']):
+                                test_position[varparam] = position[varidx]
+                            assert np.isfinite(lnprior(test_position,priors,add_args)), f"lnprior of parameters: {test_position} is not finite"
 
-                        fig,ax = plt.subplots(1,ndim, figsize=(15,5))
+                        fig,ax = plt.subplots(1,add_args['ndim'], figsize=(15,5))
                         ax = ax.reshape(-1)
 
                         print('STARTING MCMC')
                         if numcores > 1:
                             pool_proc = Pool(processes=numcores)
                             sampler = emcee.EnsembleSampler(nwalkers, 
-                                                            ndim, 
+                                                            add_args['ndim'], 
                                                             lnprob, 
                                                             args=(priors,local_output_dic['t'],local_output_dic['flux'],local_output_dic['flux_err'], add_args),
                                                             pool = pool_proc)
@@ -781,7 +855,7 @@ def main():
 
                         else:
                             sampler = emcee.EnsembleSampler(nwalkers, 
-                                                            ndim, 
+                                                            add_args['ndim'], 
                                                             lnprob, 
                                                             args=(priors,local_output_dic['t'],local_output_dic['flux'],local_output_dic['flux_err'], add_args))
                             sampler.run_mcmc(pos, nsteps, progress=True)
@@ -795,10 +869,9 @@ def main():
 
                     elif processing_method == 'reuse':
                         print('Retrieving MCMC chains')
-                        ndim, nwalkers = len(priors), len(priors)*5
                         raw_chain = np.load(mask_dir+'/chains.npy')
                         old_nwalkers, old_nsteps, old_ndim = raw_chain.shape
-                        for old_val, new_val, name in zip([old_nwalkers, old_nsteps, old_ndim],[nwalkers, nsteps, ndim],['walkers','steps','dimensions']):
+                        for old_val, new_val, name in zip([old_nwalkers, old_nsteps, old_ndim],[nwalkers, nsteps, add_args['ndim']],['walkers','steps','dimensions']):
                             if old_val != new_val:
                                 raise ValueError(f'Incoherent number of {name}. Old is {old_val}, new is {new_val}. Cannot go further.')
 
@@ -871,6 +944,9 @@ def main():
                 bestfit_res = eval_sage(best_fit_params, local_output_dic['t'], add_args)[0]
                 ax1.plot(local_output_dic['t'], bestfit_res, color='orange', label='Best Fit')
                 ax2.errorbar(local_output_dic['t'], (local_output_dic['flux'] - bestfit_res), yerr=local_output_dic['flux_err'], fmt='.', color='orange')
+                if add_args['flare_time_dic'] != {}:
+                    for key in add_args['flare_time_dic']:
+                        ax1.avline(add_args['flare_time_dic'][key], color='black', linestyle='dashed', label=key)
                 ax1.set_ylabel("Flux")
                 ax2.set_xlabel("Time (BJD)")
                 ax2.set_ylabel("Residuals")
