@@ -162,7 +162,10 @@ def main():
     ###########################
     # Defining sectors to use and LCs for each sector 
     #% For analysis of individual LCs
-    sectors_dic = {1:[1,2], 27:[1,2]}
+    sectors_dic = {
+                    # 1:[1,2],
+                    27:[1,2]
+                    }
     sectors = list(sectors_dic.keys())
 
     #Defining relevant directories
@@ -186,7 +189,10 @@ def main():
 
     #Defining the flare sigma-clipping thresholds
     #% For analysis of individual LCs
-    sigma_dic = {1:[1.5, 2.5], 27:[1.5, 1.5]}
+    sigma_dic = {
+        # 1:[1.5, 2.5],
+        27:[1.5, 1.5]
+        }
 
     # Defining rolling median function
     def rolling_median(data, window):
@@ -206,10 +212,10 @@ def main():
     output_dic = {}
 
     #Defining fitting related settings
-    numcores = 96
+    numcores = 1
 
     fitting_method = 'mcmc'
-    processing_method = 'use'
+    processing_method = 'reuse'
     #Defining least squares settings
 
     #Defining MCMC settings
@@ -229,8 +235,10 @@ def main():
     #                        },
     #                  }
     #% For analysis of concatenated LCs
-    time_window_dic = {'sector_1':{'LC_1':'all'},
-                       'sector_27':{'LC_1':'all'}}
+    time_window_dic = {
+        # 'sector_1':{'LC_1':'all'},
+        'sector_27':{'LC_1':'all'}
+                       }
 
     #Initial guesses
     #Prot in days
@@ -305,34 +313,26 @@ def main():
 
     #% For analysis of concatenated LCs
     guess_dic = {
-            'sector_1':{
-                'LC_1':{
-                    #Spot properties
-                    'spot1_lat': {'vary':True, 'guess':-30, 'bounds':[-50, -10]},
-                    'spot2_lat': {'vary':True, 'guess':40, 'bounds':[20, 60]},
-                    'spot3_lat': {'vary':True, 'guess':0, 'bounds':[-50, 50]},
-                    'spot1_long': {'vary':True, 'guess':-100, 'bounds':[-120, -80]},
-                    'spot2_long': {'vary':True, 'guess':80, 'bounds':[60, 100]},
-                    'spot3_long': {'vary':True, 'guess':0, 'bounds':[-100, 100]},
-                    'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
-                    'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
-                    'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
-                    'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
-
-                    #LC properties
-                    'offset': {'vary':True, 'guess':0., 'bounds':[0.001, 0.1]},
-                    'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
-                    'LC_offset1': {'vary':False, 'guess':0., 'bounds':[-1, 1]},
-                    'LC_offset2': {'vary':False, 'guess':0., 'bounds':[-1, 1]},
-
-                    #Star properties
-                    'Prot': {'vary':True, 'guess':'LS'},
-
-                    #Flare properties
-                }},
+            # 'sector_1':{
+            #     'LC_1':{
+            #         'spot1_lat': {'vary':True, 'guess':-30, 'bounds':[-50, -10]},
+            #         'spot2_lat': {'vary':True, 'guess':40, 'bounds':[20, 60]},
+            #         'spot3_lat': {'vary':True, 'guess':0, 'bounds':[-50, 50]},
+            #         'spot1_long': {'vary':True, 'guess':-100, 'bounds':[-120, -80]},
+            #         'spot2_long': {'vary':True, 'guess':80, 'bounds':[60, 100]},
+            #         'spot3_long': {'vary':True, 'guess':0, 'bounds':[-100, 100]},
+            #         'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
+            #         'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
+            #         'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
+            #         'offset': {'vary':True, 'guess':0., 'bounds':[0.001, 0.1]},
+            #         'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
+            #         'Prot': {'vary':True, 'guess':'LS'},
+            #         'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
+            #         'LC_offset1': {'vary':False, 'guess':0., 'bounds':[-1, 1]},
+            #         'LC_offset2': {'vary':False, 'guess':0., 'bounds':[-1, 1]},
+            #     }},
             'sector_27':{
                 'LC_1':{
-                    #Spot properties
                     'spot1_lat': {'vary':True, 'guess':-30, 'bounds':[-50, -10]},
                     'spot2_lat': {'vary':True, 'guess':40, 'bounds':[20, 60]},
                     'spot3_lat': {'vary':True, 'guess':0, 'bounds':[-50, 50]},
@@ -341,23 +341,16 @@ def main():
                     'spot3_long': {'vary':True, 'guess':0, 'bounds':[-100, 100]},
                     'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
                     'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
-                    'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},
-                    'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
-                    
-                    #LC properties
+                    'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},                    
                     'offset': {'vary':True, 'guess':0., 'bounds':[0.001, 0.1]},
-                    'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},
-                    'LC_offset1': {'vary':False, 'guess':0., 'bounds':[-0.001, 0.001]},
-                    'LC_offset2': {'vary':False, 'guess':0., 'bounds':[0.005, 0.007]},
-                    
-                    #Star properties
-                    'Prot': {'vary':True, 'guess':'LS'},
-                    
-                    #Flare properties
+                    'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},            
+                    'Prot': {'vary':True, 'guess':'LS'},           
                     'flare1_spot1_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
                     'flare1_spot2_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
                     'flare1_spot3_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
-
+                    'sp_ctrst': {'vary':False, 'guess':0.2,'bounds':[0.4, 0.8]},
+                    'LC_offset1': {'vary':False, 'guess':0., 'bounds':[-0.001, 0.001]},
+                    'LC_offset2': {'vary':False, 'guess':0., 'bounds':[0.005, 0.007]},
                 }}
     }
 
@@ -432,26 +425,27 @@ def main():
 
 #% For analysis of concatenated LCs
     priors_dic = {
-            'sector_1':{
-                'LC_1':{
-                    'spot1_lat': {'type':'uf', 'min':-80, 'max':0.},
-                    'spot2_lat': {'type':'uf', 'min':0, 'max':80},
-                    'spot3_lat': {'type':'uf', 'min':-80, 'max':80},
-                    'spot1_long': {'type':'uf', 'min':-180, 'max':180},
-                    'spot2_long': {'type':'uf', 'min':-180, 'max':180},
-                    'spot3_long': {'type':'uf', 'min':-180, 'max':180},
-                    'spot1_size': {'type':'uf', 'min':0, 'max':90},
-                    'spot2_size': {'type':'uf', 'min':0, 'max':90},
-                    'spot3_size': {'type':'uf', 'min':0, 'max':90},
-                    'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
-                    'jitter': {'type':'uf', 'min':-15, 'max':15},
-                    'Prot': {'type':'LS'},
-                    # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
-                    # 'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
-                    # 'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
-                }},
+            # 'sector_1':{
+            #     'LC_1':{
+            #         'spot1_lat': {'type':'uf', 'min':-80, 'max':0.},
+            #         'spot2_lat': {'type':'uf', 'min':0, 'max':80},
+            #         'spot3_lat': {'type':'uf', 'min':-80, 'max':80},
+            #         'spot1_long': {'type':'uf', 'min':-180, 'max':180},
+            #         'spot2_long': {'type':'uf', 'min':-180, 'max':180},
+            #         'spot3_long': {'type':'uf', 'min':-180, 'max':180},
+            #         'spot1_size': {'type':'uf', 'min':0, 'max':90},
+            #         'spot2_size': {'type':'uf', 'min':0, 'max':90},
+            #         'spot3_size': {'type':'uf', 'min':0, 'max':90},
+            #         'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
+            #         'jitter': {'type':'uf', 'min':-15, 'max':15},
+            #         'Prot': {'type':'LS'},
+            #         # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
+            #         # 'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
+            #         # 'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
+            #     }},
             'sector_27':{
                 'LC_1':{
+                    #Spot properties
                     'spot1_lat': {'type':'uf', 'min':-80, 'max':0.},
                     'spot2_lat': {'type':'uf', 'min':0, 'max':80},
                     'spot3_lat': {'type':'uf', 'min':-80, 'max':80},
@@ -461,12 +455,18 @@ def main():
                     'spot1_size': {'type':'uf', 'min':0, 'max':90},
                     'spot2_size': {'type':'uf', 'min':0, 'max':90},
                     'spot3_size': {'type':'uf', 'min':0, 'max':90},
+
+                    #LC properties
                     'offset': {'type':'uf', 'min':-1.5, 'max':2.5},
                     'jitter': {'type':'uf', 'min':-15, 'max':15},
+
+                    #Star properties
                     'Prot': {'type':'LS'},
-                    'flare1_spot1_size': {'type':'uf', 'min':0, 'max':90},
-                    'flare1_spot2_size': {'type':'uf', 'min':0, 'max':90},
-                    'flare1_spot3_size': {'type':'uf', 'min':0, 'max':90},
+
+                    #Flare properties
+                    'flare1_spot1_size': {'type':'uf', 'min':0, 'max':30},
+                    'flare1_spot2_size': {'type':'uf', 'min':0, 'max':30},
+                    'flare1_spot3_size': {'type':'uf', 'min':0, 'max':30},
                     # 'sp_ctrst': {'type':'uf', 'min':0., 'max':1.},
                     # 'LC_offset1': {'type':'uf', 'min':-1, 'max':1},
                     # 'LC_offset2': {'type':'uf', 'min':-1, 'max':1},
