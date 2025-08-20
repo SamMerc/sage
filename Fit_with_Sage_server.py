@@ -614,10 +614,6 @@ def main():
 
             sectors_dic[sector] = [1] #Only one LC per sector
 
-            #Delete the old directory
-            for subdir in os.listdir(output_dir+f'/sector_{sector}'):
-                if ('LC_' in subdir) and (subdir != 'LC_1'):os.rmdir(output_dir+f'sector_{sector}/'+subdir)
-
 
     ####################
     ### Fitting data ###
