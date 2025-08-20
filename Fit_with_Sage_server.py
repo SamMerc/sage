@@ -212,16 +212,16 @@ def main():
     output_dic = {}
 
     #Defining fitting related settings
-    numcores = 1
+    numcores = 96
 
     fitting_method = 'mcmc'
-    processing_method = 'reuse'
+    processing_method = 'use'
     #Defining least squares settings
 
     #Defining MCMC settings
-    nsteps = 5000
-    nburn=3000
-    nwalkers=60
+    nsteps = 15000
+    nburn= 7000
+    nwalkers = 60
 
     # Defining time window of sectors to fit
     #% For analysis of individual LCs
@@ -333,17 +333,17 @@ def main():
             #     }},
             'sector_27':{
                 'LC_1':{
-                    'spot1_lat': {'vary':True, 'guess':-30, 'bounds':[-50, -10]},
-                    'spot2_lat': {'vary':True, 'guess':40, 'bounds':[20, 60]},
-                    'spot3_lat': {'vary':True, 'guess':0, 'bounds':[-50, 50]},
-                    'spot1_long': {'vary':True, 'guess':-100, 'bounds':[-120, -80]},
-                    'spot2_long': {'vary':True, 'guess':80, 'bounds':[60, 100]},
-                    'spot3_long': {'vary':True, 'guess':0, 'bounds':[-100, 100]},
-                    'spot1_size': {'vary':True, 'guess':8, 'bounds':[1, 15]},
-                    'spot2_size': {'vary':True, 'guess':15, 'bounds':[1, 25]},
-                    'spot3_size': {'vary':True, 'guess':2, 'bounds':[1, 15]},                    
-                    'offset': {'vary':True, 'guess':0., 'bounds':[0.001, 0.1]},
-                    'jitter': {'vary':True, 'guess':-10, 'bounds':[-12, 10]},            
+                    'spot1_lat': {'vary':True, 'guess':-20, 'bounds':[-40, 0]},
+                    'spot2_lat': {'vary':True, 'guess':42, 'bounds':[35, 50]},
+                    'spot3_lat': {'vary':True, 'guess':-70, 'bounds':[-80, -60]},
+                    'spot1_long': {'vary':True, 'guess':-100, 'bounds':[-110, -90]},
+                    'spot2_long': {'vary':True, 'guess':-15, 'bounds':[-20, -10]},
+                    'spot3_long': {'vary':True, 'guess':-175, 'bounds':[-180, -170]},
+                    'spot1_size': {'vary':True, 'guess':6, 'bounds':[5, 7]},
+                    'spot2_size': {'vary':True, 'guess':11, 'bounds':[10, 12]},
+                    'spot3_size': {'vary':True, 'guess':25, 'bounds':[20, 30]},                    
+                    'offset': {'vary':True, 'guess':0.025, 'bounds':[0.02, 0.03]},
+                    'jitter': {'vary':True, 'guess':-5, 'bounds':[-6, -4]},            
                     'Prot': {'vary':True, 'guess':'LS'},           
                     'flare1_spot1_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
                     'flare1_spot2_size': {'vary':True, 'timing':2459048.5, 'guess':5., 'bounds':[0, 10]},
