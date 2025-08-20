@@ -15,7 +15,6 @@ import corner
 import astropy.units as u
 from astropy.timeseries import LombScargle
 import arviz as az
-import time as tim
 import shutil
 warnings.filterwarnings(action='ignore', category=RuntimeWarning)
 
@@ -41,9 +40,6 @@ def lnprior(params,priors, args):
 def eval_sage(params, time, args):
     # disintegrating the params to make it usable in sage. 
     #% Spots
-    current_time = tim.time()
-    print('0:', current_time - args['time_store'])
-    args['time_store'] = current_time
     spot_long= []
     spot_lat=[]
     spot_size= []
@@ -88,17 +84,11 @@ def eval_sage(params, time, args):
     ve=(2*np.pi*0.744*696340)/(prot*24*3600)
 
     model_lightcurve = np.empty(len(time))
-    current_time = tim.time()
-    print('1:', current_time - args['time_store'])
-    args['time_store'] = current_time
 
     execute_once = [[False for _ in range(args['spotnumber'])] for _ in range(args['flarenumber'])]
     for i, ti in enumerate(time):
         
         #Vary spot size if a flare step parameter has been included
-        current_time = tim.time()
-        print(f'{2 + int(i)}: ', current_time - args['time_store'])
-        args['time_store'] = current_time
         if args['flare_time_dic'] != {}:
             for fidx, flarenam in enumerate(args['flarenames']):
                 for sidx, spotnam in enumerate(args['spotnames']):
@@ -108,22 +98,11 @@ def eval_sage(params, time, args):
                         execute_once[fidx][sidx] = True
 
         phase_roti = ((2*np.pi)/prot) * (ti - time[0])
-        current_time = tim.time()
-        print(f'{3 + int(i)}: ', current_time - args['time_store'])
-        args['time_store'] = current_time
 
         star = sage_class(stellar_params, planet_pixel_size, wavelength, flux_hot, flux_cold, 
                 spot_lat, spot_long, spot_size, ve, args['spotnumber'], 'multi-color', 5000, phases_rot=[np.rad2deg(phase_roti) * u.deg])
 
-        current_time = tim.time()
-        print(f'{4 + int(i)}: ', current_time - args['time_store'])
-        args['time_store'] = current_time
-
         flux_norm, _, _= star.rotate_star()
-
-        current_time = tim.time()
-        print(f'{5 + int(i)}: ', current_time - args['time_store'])
-        args['time_store'] = current_time
 
         model_lightcurve[i] = flux_norm 
     
@@ -869,7 +848,6 @@ def main():
                         ax = ax.reshape(-1)
 
                         print('STARTING MCMC')
-                        add_args['time_store'] = tim.time()
                         if numcores > 1:
                             pool_proc = Pool(processes=numcores)
                             sampler = emcee.EnsembleSampler(nwalkers, 
