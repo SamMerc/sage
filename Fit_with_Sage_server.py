@@ -15,6 +15,7 @@ import corner
 import astropy.units as u
 from astropy.timeseries import LombScargle
 import arviz as az
+import shutil
 warnings.filterwarnings(action='ignore', category=RuntimeWarning)
 
 # Loading sage 
@@ -614,6 +615,10 @@ def main():
 
             sectors_dic[sector] = [1] #Only one LC per sector
 
+            #Delete the old directory
+            for subdir in os.listdir(output_dir+f'/sector_{sector}'):
+                if ('LC_' in subdir) and (subdir != 'LC_1'):shutil.rmtree(output_dir+f'/sector_{sector}/'+subdir)
+
 
     ####################
     ### Fitting data ###
@@ -844,6 +849,7 @@ def main():
                         print('STARTING MCMC')
                         if numcores > 1:
                             pool_proc = Pool(processes=numcores)
+                            print(f'   Running with {numcores} cores')
                             sampler = emcee.EnsembleSampler(nwalkers, 
                                                             add_args['ndim'], 
                                                             lnprob, 
@@ -854,6 +860,7 @@ def main():
                             pool_proc.join()
 
                         else:
+                            print(f'   Running with 1 core')
                             sampler = emcee.EnsembleSampler(nwalkers, 
                                                             add_args['ndim'], 
                                                             lnprob, 
