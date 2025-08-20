@@ -21,7 +21,7 @@ warnings.filterwarnings(action='ignore', category=RuntimeWarning)
 # Loading sage 
 import sys
 import os
-sys.path.append('/Users/samsonmercier/Desktop/Work/Master/2023-2024/SAGE/sage_output')
+sys.path.append('/Users/samsonmercier/Desktop/Work/Master/2023-2024/SAGE/sage/sage_output')
 from sage import sage_class
 
 
@@ -170,7 +170,7 @@ def main():
     sectors = list(sectors_dic.keys())
 
     #Defining relevant directories
-    output_dir = '/Users/samsonmercier/Desktop/Work/Master/2023-2024/SAGE/sage_output/AU_Mic/'
+    output_dir = '/Users/samsonmercier/Desktop/Work/Master/2023-2024/SAGE/sage/sage_output/AU_Mic/'
     #% For analysis of individual LCs
     input_dir = '/Users/samsonmercier/Desktop/Work/Master/2023-2024/AUMic_data/Formatted_TESS'
 
