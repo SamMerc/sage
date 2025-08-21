@@ -43,8 +43,8 @@ class sage_class:
                 lc.append(flux_norm)    
                 epsilon_wl.append(contamination_factor)
                 star_maps.append(star_map)
-            lc= lc/np.median(lc) # added to remove the peak flux 1.0 case.   #TODO discuss with ML about what's best way of normalising. clear stellar spec or median of lc.                         
-
+            lc = np.array(lc, dtype=np.float64)
+            lc /= np.median(lc)
         return lc, epsilon_wl, star_maps
                 
         
@@ -131,9 +131,10 @@ class sage_class:
                 np.maximum(0.0, 1.0 - ((r2[starmask] / star_pixel_rad2)))
             ).astype(np.float32)
         ######################
-        bin_flux = []
-        stellar_spec = []
-        contamination_factor = []
+        nwave = len(self.wavelength)
+        bin_flux = np.empty(nwave, dtype=np.float64)
+        stellar_spec = np.empty(nwave, dtype=np.float64)
+        contamination_factor = np.empty(nwave, dtype=np.float64)
         
         if self.fit_ldc == 'single':       
             u1= np.zeros(len(self.wavelength), dtype=np.float64)
@@ -148,6 +149,8 @@ class sage_class:
         iy_star, ix_star = np.nonzero(starmask)
         mu = mu_full[iy_star, ix_star]        # (M,)
         vel_star = grid_new[iy_star, ix_star]      # (M,) already v/c scaling
+
+        star_grid = np.zeros((n, n), dtype=np.float32)
 
         for i, wave in enumerate(self.wavelength):
             ### TIME CONSUMING ###
@@ -169,11 +172,11 @@ class sage_class:
                 star_vals *= interpolated_intensity_prof[i]             # (M,)
 
             # Assemble full 2D star grid efficiently
-            star_grid = np.zeros((n, n), dtype=np.float32)
+            star_grid.fill(0.0)  # reset grid
             star_grid[iy_star, ix_star] = star_vals.astype(np.float32)
 
             star_spec = star_grid[iy_star, ix_star].sum() / float(total_pixels)
-            stellar_spec.append(star_spec)
+            stellar_spec[i] = star_spec
 
             ######################
 
@@ -289,10 +292,10 @@ class sage_class:
                     star_grid[iy, ix] = F_cold_vec.astype(np.float32)            
 
             total_flux = star_grid[iy_star, ix_star].sum() / float(total_pixels)
-            bin_flux.append(total_flux)
+            bin_flux[i] = total_flux
             
             resi = (star_spec/ total_flux) # a proof for this formula is available in the paper.
-            contamination_factor.append(resi)
+            contamination_factor[i] = resi
             
             if abs(lambdaa - self.plot_map_wavelength) <= 10:
                 star_map_out= star_grid     
